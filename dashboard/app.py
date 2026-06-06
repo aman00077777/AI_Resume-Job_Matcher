@@ -68,38 +68,9 @@ if "auth_token" not in st.session_state:
     st.session_state.auth_token = None
 if "user_email" not in st.session_state:
     st.session_state.user_email = None
-if "api_base_url" not in st.session_state:
-    st.session_state.api_base_url = "http://localhost:8000"
 
-
-# ─── Sidebar ─────────────────────────────────────────────────────────────────
-
-with st.sidebar:
-    st.title("AI Resume-Job Matcher")
-    st.caption("Find your perfect role, automatically.")
-
-    st.divider()
-
-    if st.session_state.auth_token:
-        st.success(f"Logged in as {st.session_state.user_email}")
-        if st.button("Log out", use_container_width=True):
-            st.session_state.auth_token = None
-            st.session_state.user_email = None
-            st.rerun()
-    else:
-        st.info("Please log in using the main page.")
-
-    st.divider()
-
-    # API base URL config (for development)
-    with st.expander("Developer Settings"):
-        api_url = st.text_input(
-            "API Base URL",
-            value=st.session_state.api_base_url,
-            help="URL of the FastAPI backend",
-        )
-        if api_url != st.session_state.api_base_url:
-            st.session_state.api_base_url = api_url
+from dashboard.components.sidebar import render_sidebar
+render_sidebar()
 
 
 # ─── Main Page (Auth Gate) ───────────────────────────────────────────────────

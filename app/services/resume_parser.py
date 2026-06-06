@@ -97,7 +97,7 @@ def structure_resume_with_gemini(raw_text: str) -> ParsedResume:
 
     prompt = RESUME_PARSE_PROMPT.format(resume_text=raw_text[:15000])  # Cap to avoid token limits
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [
@@ -114,7 +114,14 @@ def structure_resume_with_gemini(raw_text: str) -> ParsedResume:
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
+        if response.status_code != 200:
+            try:
+                err_data = response.json()
+                msg = err_data.get("error", {}).get("message", response.text)
+            except Exception:
+                msg = response.text
+            raise ResumeParsingError(f"Gemini API error (HTTP {response.status_code}): {msg}")
+            
         response_json = response.json()
 
         response_text = response_json["candidates"][0]["content"]["parts"][0]["text"].strip()

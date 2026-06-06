@@ -144,7 +144,7 @@ def evaluate_match(
         job_description=job_description[:8000],  # Cap to manage tokens
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [
@@ -161,7 +161,15 @@ def evaluate_match(
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
+        if response.status_code != 200:
+            try:
+                err_data = response.json()
+                msg = err_data.get("error", {}).get("message", response.text)
+            except Exception:
+                msg = response.text
+            logger.error(f"Gemini API error (HTTP {response.status_code}): {msg}")
+            return _fallback_scores(job_title)
+            
         response_json = response.json()
 
         response_text = response_json["candidates"][0]["content"]["parts"][0]["text"].strip()

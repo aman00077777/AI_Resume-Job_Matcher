@@ -15,6 +15,9 @@ st.set_page_config(page_title="Matches - AI Job Matcher", page_icon="briefcase",
 st.title("Job Matches")
 st.caption("AI-scored matches between your resume and discovered job openings.")
 
+from dashboard.components.sidebar import render_sidebar
+render_sidebar()
+
 # ─── Auth Check ──────────────────────────────────────────────────────────────
 
 if not st.session_state.get("auth_token"):
@@ -22,7 +25,7 @@ if not st.session_state.get("auth_token"):
     st.stop()
 
 api_headers = {"Authorization": f"Bearer {st.session_state.auth_token}"}
-base = st.session_state.get("api_base_url", "http://localhost:8000")
+base = st.session_state.api_base_url
 
 
 # ─── Sidebar Filters ─────────────────────────────────────────────────────────
