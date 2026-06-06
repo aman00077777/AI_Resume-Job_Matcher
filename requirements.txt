@@ -1,0 +1,36 @@
+# Core API
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.18
+python-dotenv==1.0.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# Database
+supabase==2.11.0
+
+# AI & Scraping
+anthropic==0.42.0
+firecrawl-py==1.6.2
+PyPDF2==3.0.1
+
+# Auth
+python-jose[cryptography]==3.3.0
+
+# Discord
+requests==2.32.3
+
+# Dashboard
+streamlit==1.41.1
+plotly==5.24.1
+pandas==2.2.3
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+httpx==0.28.1
+
+# Utilities
+loguru==0.7.3
+tenacity==9.0.0

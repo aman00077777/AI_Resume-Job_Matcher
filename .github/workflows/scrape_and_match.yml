@@ -1,0 +1,63 @@
+# ─── GitHub Actions: Scheduled Scrape and Match ──────────────────────────────
+# Runs the scrape-and-match pipeline every 6 hours by calling the
+# deployed FastAPI endpoint with a service API key.
+#
+# Required GitHub Secrets:
+#   - API_BASE_URL:    https://your-app.onrender.com
+#   - SERVICE_API_KEY: Your generated service API key
+
+name: Scrape and Match Jobs
+
+on:
+  # Run every 6 hours
+  schedule:
+    - cron: "0 */6 * * *"
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    name: Trigger Scrape and Match
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger scrape via API
+        run: |
+          echo "Triggering scrape at $(date -u)"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.SERVICE_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.API_BASE_URL }}/api/scraping/trigger")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          
+          echo "Response: $BODY"
+          echo "HTTP Code: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ne 202 ]; then
+            echo "ERROR: Expected HTTP 202, got $HTTP_CODE"
+            exit 1
+          fi
+          
+          echo "Scrape triggered successfully!"
+
+      - name: Wait for processing
+        run: |
+          echo "Waiting 30 seconds for initial processing..."
+          sleep 30
+
+      - name: Verify API health
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.API_BASE_URL }}/health")
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "WARNING: API health check returned $HTTP_CODE"
+          else
+            echo "API is healthy after scrape trigger."
+          fi

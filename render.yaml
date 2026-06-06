@@ -1,0 +1,53 @@
+# ─── Render Blueprint ─────────────────────────────────────────────────────────
+# Deploy both services to Render with: render blueprint apply
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # FastAPI Backend
+  - type: web
+    name: ai-job-matcher-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+      - key: SERVICE_API_KEY
+        sync: false
+      - key: MATCH_THRESHOLD
+        value: "80"
+      - key: SCRAPE_MAX_JOBS_PER_SOURCE
+        value: "50"
+      - key: LOG_LEVEL
+        value: "INFO"
+
+  # Streamlit Dashboard
+  - type: web
+    name: ai-job-matcher-dashboard
+    runtime: docker
+    dockerfilePath: ./Dockerfile.dashboard
+    plan: free
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: API_BASE_URL
+        fromService:
+          name: ai-job-matcher-api
+          type: web
+          property: host
