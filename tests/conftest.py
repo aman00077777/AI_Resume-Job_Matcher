@@ -16,7 +16,7 @@ os.environ["SUPABASE_URL"] = "https://test.supabase.co"
 os.environ["SUPABASE_KEY"] = "test-anon-key"
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "test-service-key"
 os.environ["SUPABASE_JWT_SECRET"] = "test-jwt-secret"
-os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test-key"
+os.environ["GEMINI_API_KEY"] = "AIzaSy-test-key"
 os.environ["FIRECRAWL_API_KEY"] = "fc-test-key"
 os.environ["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/test/test"
 os.environ["SERVICE_API_KEY"] = "test-service-api-key"
@@ -47,7 +47,7 @@ def set_test_env(monkeypatch):
     monkeypatch.setenv("SUPABASE_KEY", "test-anon-key")
     monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
     monkeypatch.setenv("SUPABASE_JWT_SECRET", "test-jwt-secret")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSy-test-key")
     monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-test-key")
     monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.com/api/webhooks/test/test")
     monkeypatch.setenv("SERVICE_API_KEY", "test-service-api-key")
@@ -179,21 +179,32 @@ startxref
 
 
 @pytest.fixture
-def mock_claude_resume_response():
-    """Mock Claude response for resume parsing."""
-    return json.dumps({
+def mock_gemini_resume_response():
+    """Mock Gemini response for resume parsing."""
+    inner_json = json.dumps({
         "skills": ["Python", "JavaScript", "React", "FastAPI", "PostgreSQL"],
         "experience_years": 6,
         "education": [{"degree": "B.S. Computer Science", "institution": "MIT", "year": "2018"}],
         "job_titles": ["Senior Software Engineer", "Software Engineer"],
         "summary": "Experienced engineer with 6 years in full-stack development.",
     })
+    return {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {"text": inner_json}
+                    ]
+                }
+            }
+        ]
+    }
 
 
 @pytest.fixture
-def mock_claude_match_response():
-    """Mock Claude response for job matching."""
-    return json.dumps({
+def mock_gemini_match_response():
+    """Mock Gemini response for job matching."""
+    inner_json = json.dumps({
         "skills_score": 85,
         "experience_score": 90,
         "title_score": 80,
@@ -202,6 +213,17 @@ def mock_claude_match_response():
         "missing_skills": ["GraphQL"],
         "summary": "Strong match. Candidate has most required skills and appropriate experience level.",
     })
+    return {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {"text": inner_json}
+                    ]
+                }
+            }
+        ]
+    }
 
 
 @pytest.fixture

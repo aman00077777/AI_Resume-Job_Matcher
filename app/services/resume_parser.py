@@ -8,7 +8,7 @@ import json
 from io import BytesIO
 
 from PyPDF2 import PdfReader
-from anthropic import Anthropic
+import requests
 from loguru import logger
 
 from app.config import get_settings
@@ -20,7 +20,7 @@ class ResumeParsingError(Exception):
     pass
 
 
-# ─── Claude prompt for structuring resume text ───────────────────────────────
+# ─── Gemini prompt for structuring resume text ───────────────────────────────
 
 RESUME_PARSE_PROMPT = """You are an expert resume parser. Extract structured information from the following resume text.
 
@@ -32,7 +32,7 @@ Analyze the text carefully and return a JSON object with these exact fields:
 - "job_titles": A list of job titles the person has held, ordered from most recent to oldest.
 - "summary": A concise 2-sentence professional summary of this candidate.
 
-Return ONLY valid JSON. No markdown, no explanation, no code fences.
+Return ONLY valid JSON.
 
 Resume text:
 {resume_text}"""
@@ -80,8 +80,8 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     return full_text
 
 
-def structure_resume_with_claude(raw_text: str) -> ParsedResume:
-    """Use Claude to parse raw resume text into structured fields.
+def structure_resume_with_gemini(raw_text: str) -> ParsedResume:
+    """Use Gemini to parse raw resume text into structured fields.
 
     Args:
         raw_text: Plain text extracted from the resume PDF.
@@ -90,23 +90,36 @@ def structure_resume_with_claude(raw_text: str) -> ParsedResume:
         A ParsedResume with skills, experience, education, etc.
 
     Raises:
-        ResumeParsingError: If Claude returns unparseable output.
+        ResumeParsingError: If Gemini returns unparseable output.
     """
     settings = get_settings()
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    api_key = settings.gemini_api_key
 
     prompt = RESUME_PARSE_PROMPT.format(resume_text=raw_text[:15000])  # Cap to avoid token limits
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json"
+        }
+    }
+
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        response_json = response.json()
 
-        response_text = message.content[0].text.strip()
+        response_text = response_json["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-        # Strip markdown code fences if Claude added them despite instructions
+        # Strip markdown code fences if Gemini added them despite instructions
         if response_text.startswith("```"):
             lines = response_text.split("\n")
             response_text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
@@ -132,10 +145,10 @@ def structure_resume_with_claude(raw_text: str) -> ParsedResume:
         )
 
     except json.JSONDecodeError as e:
-        logger.error(f"Claude returned invalid JSON: {e}")
+        logger.error(f"Gemini returned invalid JSON: {e}")
         raise ResumeParsingError("Failed to parse resume — AI returned invalid output. Please try again.")
     except Exception as e:
-        logger.error(f"Claude API error during resume parsing: {e}")
+        logger.error(f"Gemini API error during resume parsing: {e}")
         raise ResumeParsingError(f"Resume parsing failed: {e}")
 
 
@@ -154,7 +167,7 @@ def parse_resume(pdf_bytes: bytes, filename: str = "resume.pdf") -> dict:
     raw_text = extract_text_from_pdf(pdf_bytes)
     logger.info(f"Extracted {len(raw_text)} chars from {filename}")
 
-    parsed = structure_resume_with_claude(raw_text)
+    parsed = structure_resume_with_gemini(raw_text)
     logger.info(f"Parsed resume: {len(parsed.skills)} skills, {parsed.experience_years} years exp")
 
     return {

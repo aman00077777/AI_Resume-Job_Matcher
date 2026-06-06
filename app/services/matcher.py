@@ -6,8 +6,7 @@ breakdown across four criteria.
 """
 
 import json
-
-from anthropic import Anthropic
+import requests
 from loguru import logger
 
 from app.config import get_settings
@@ -131,7 +130,7 @@ def evaluate_match(
         matching/missing skills, and summary. Ready for DB insert.
     """
     settings = get_settings()
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    api_key = settings.gemini_api_key
 
     prompt = MATCH_PROMPT.format(
         skills=", ".join(resume_data.get("skills", [])),
@@ -145,19 +144,27 @@ def evaluate_match(
         job_description=job_description[:8000],  # Cap to manage tokens
     )
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json"
+        }
+    }
+
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        response_json = response.json()
 
-        response_text = message.content[0].text.strip()
-
-        # Strip code fences if present
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            response_text = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+        response_text = response_json["candidates"][0]["content"]["parts"][0]["text"].strip()
 
         data = json.loads(response_text)
 

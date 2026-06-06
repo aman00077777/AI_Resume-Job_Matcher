@@ -13,7 +13,7 @@ import pytest
 
 from app.services.resume_parser import (
     extract_text_from_pdf,
-    structure_resume_with_claude,
+    structure_resume_with_gemini,
     parse_resume,
     ResumeParsingError,
 )
@@ -56,20 +56,18 @@ class TestExtractTextFromPdf:
                 extract_text_from_pdf(b"fake-pdf-bytes")
 
 
-class TestStructureResumeWithClaude:
-    """Tests for Claude-powered resume structuring."""
+class TestStructureResumeWithGemini:
+    """Tests for Gemini-powered resume structuring."""
 
-    @patch("app.services.resume_parser.Anthropic")
-    def test_parses_valid_response(self, MockAnthropic, sample_resume_text, mock_claude_resume_response):
-        """Claude returns valid JSON -> ParsedResume with correct fields."""
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text=mock_claude_resume_response)]
+    @patch("app.services.resume_parser.requests.post")
+    def test_parses_valid_response(self, mock_post, sample_resume_text, mock_gemini_resume_response):
+        """Gemini returns valid JSON -> ParsedResume with correct fields."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_gemini_resume_response
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_message
-        MockAnthropic.return_value = mock_client
-
-        result = structure_resume_with_claude(sample_resume_text)
+        result = structure_resume_with_gemini(sample_resume_text)
 
         assert len(result.skills) == 5
         assert result.experience_years == 6
@@ -77,39 +75,56 @@ class TestStructureResumeWithClaude:
         assert result.education[0].institution == "MIT"
         assert "Senior Software Engineer" in result.job_titles
 
-    @patch("app.services.resume_parser.Anthropic")
-    def test_raises_on_invalid_json(self, MockAnthropic, sample_resume_text):
-        """Claude returns non-JSON text -> ResumeParsingError."""
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text="This is not valid JSON at all")]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_message
-        MockAnthropic.return_value = mock_client
+    @patch("app.services.resume_parser.requests.post")
+    def test_raises_on_invalid_json(self, mock_post, sample_resume_text):
+        """Gemini returns non-JSON text -> ResumeParsingError."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": "This is not valid JSON at all"}
+                        ]
+                    }
+                }
+            ]
+        }
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
         with pytest.raises(ResumeParsingError, match="invalid output"):
-            structure_resume_with_claude(sample_resume_text)
+            structure_resume_with_gemini(sample_resume_text)
 
-    @patch("app.services.resume_parser.Anthropic")
-    def test_handles_code_fenced_response(self, MockAnthropic, sample_resume_text, mock_claude_resume_response):
-        """Claude wraps JSON in code fences -> still parses correctly."""
-        fenced = f"```json\n{mock_claude_resume_response}\n```"
+    @patch("app.services.resume_parser.requests.post")
+    def test_handles_code_fenced_response(self, mock_post, sample_resume_text, mock_gemini_resume_response):
+        """Gemini wraps JSON in code fences -> still parses correctly."""
+        inner_json = mock_gemini_resume_response["candidates"][0]["content"]["parts"][0]["text"]
+        fenced = f"```json\n{inner_json}\n```"
 
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text=fenced)]
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": fenced}
+                        ]
+                    }
+                }
+            ]
+        }
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_message
-        MockAnthropic.return_value = mock_client
-
-        result = structure_resume_with_claude(sample_resume_text)
+        result = structure_resume_with_gemini(sample_resume_text)
         assert len(result.skills) > 0
 
 
 class TestParseResume:
     """Integration tests for the full parse_resume pipeline."""
 
-    @patch("app.services.resume_parser.structure_resume_with_claude")
+    @patch("app.services.resume_parser.structure_resume_with_gemini")
     @patch("app.services.resume_parser.extract_text_from_pdf")
     def test_full_pipeline_happy_path(self, mock_extract, mock_structure, sample_pdf_bytes):
         """Full pipeline: PDF -> text -> structured data."""

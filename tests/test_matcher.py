@@ -87,23 +87,21 @@ class TestFallbackScores:
 
 
 class TestEvaluateMatch:
-    """Tests for the full Claude matching pipeline."""
+    """Tests for the full Gemini matching pipeline."""
 
-    @patch("app.services.matcher.Anthropic")
+    @patch("app.services.matcher.requests.post")
     def test_evaluates_good_match(
         self,
-        MockAnthropic,
+        mock_post,
         sample_resume_data,
         sample_job_description,
-        mock_claude_match_response,
+        mock_gemini_match_response,
     ):
         """Test 5: Match SWE resume against SWE job -> overall score > 70."""
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text=mock_claude_match_response)]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_message
-        MockAnthropic.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_gemini_match_response
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
         result = evaluate_match(
             resume_data=sample_resume_data,
@@ -119,20 +117,28 @@ class TestEvaluateMatch:
         assert "Python" in result["matching_skills"]
         assert len(result["summary"]) > 0
 
-    @patch("app.services.matcher.Anthropic")
+    @patch("app.services.matcher.requests.post")
     def test_returns_fallback_on_invalid_json(
         self,
-        MockAnthropic,
+        mock_post,
         sample_resume_data,
         sample_job_description,
     ):
-        """Claude returns garbage -> fallback scores, no crash."""
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text="I cannot evaluate this match.")]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_message
-        MockAnthropic.return_value = mock_client
+        """Gemini returns garbage -> fallback scores, no crash."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": "I cannot evaluate this match."}
+                        ]
+                    }
+                }
+            ]
+        }
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
         result = evaluate_match(
             resume_data=sample_resume_data,
@@ -143,17 +149,15 @@ class TestEvaluateMatch:
         assert result["overall_score"] == 0
         assert "failed" in result["summary"].lower() or "re-evaluated" in result["summary"].lower()
 
-    @patch("app.services.matcher.Anthropic")
+    @patch("app.services.matcher.requests.post")
     def test_returns_fallback_on_api_error(
         self,
-        MockAnthropic,
+        mock_post,
         sample_resume_data,
         sample_job_description,
     ):
-        """Claude API throws exception -> fallback scores, no crash."""
-        mock_client = MagicMock()
-        mock_client.messages.create.side_effect = Exception("API key invalid")
-        MockAnthropic.return_value = mock_client
+        """Gemini API throws exception -> fallback scores, no crash."""
+        mock_post.side_effect = Exception("API key invalid")
 
         result = evaluate_match(
             resume_data=sample_resume_data,
@@ -163,15 +167,15 @@ class TestEvaluateMatch:
 
         assert result["overall_score"] == 0
 
-    @patch("app.services.matcher.Anthropic")
+    @patch("app.services.matcher.requests.post")
     def test_clamps_out_of_range_scores(
         self,
-        MockAnthropic,
+        mock_post,
         sample_resume_data,
         sample_job_description,
     ):
-        """Claude returns scores > 100 -> clamped to 100."""
-        response = json.dumps({
+        """Gemini returns scores > 100 -> clamped to 100."""
+        response_inner = json.dumps({
             "skills_score": 150,
             "experience_score": -10,
             "title_score": 80,
@@ -180,13 +184,22 @@ class TestEvaluateMatch:
             "missing_skills": [],
             "summary": "Test",
         })
+        response = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": response_inner}
+                        ]
+                    }
+                }
+            ]
+        }
 
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text=response)]
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_message
-        MockAnthropic.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.json.return_value = response
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
 
         result = evaluate_match(
             resume_data=sample_resume_data,

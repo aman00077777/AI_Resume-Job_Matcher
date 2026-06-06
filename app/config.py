@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = Field(..., description="Supabase service role key")
     supabase_jwt_secret: str = Field(..., description="Supabase JWT secret for token verification")
 
-    # --- Anthropic (Claude) ---
-    anthropic_api_key: str = Field(..., description="Anthropic API key")
+    # --- Gemini ---
+    gemini_api_key: str = Field(..., description="Gemini API key")
 
     # --- Firecrawl ---
     firecrawl_api_key: str = Field(..., description="Firecrawl API key")
