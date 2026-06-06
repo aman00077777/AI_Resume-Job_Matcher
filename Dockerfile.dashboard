@@ -7,8 +7,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy dashboard code
-COPY dashboard/ ./dashboard/
+# Copy ALL project files (needed for dashboard.components imports)
+COPY . .
 
 # Expose Streamlit port
 EXPOSE 8501
