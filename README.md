@@ -1,6 +1,6 @@
 # AI Resume-Job Matching Application
 
-An end-to-end AI-powered system that monitors company career pages, evaluates job-candidate fit using Claude AI, and sends Discord alerts when strong matches are found.
+An end-to-end AI-powered system that monitors company career pages, evaluates job-candidate fit using Gemini AI, and sends Discord alerts when strong matches are found.
 
 ## How It Works
 
@@ -11,12 +11,12 @@ Resume (PDF)                    Career Page URLs
  PyPDF2 text extraction       Firecrawl scraping
      |                                |
      v                                v
- Claude structures resume      Job listings extracted
+ Gemini structures resume      Job listings extracted
      |                                |
      +----------+   +-----------+-----+
                 |   |
                 v   v
-        Claude Match Scoring
+        Gemini Match Scoring
         (weighted 0-100%)
                 |
          +------+------+
@@ -29,13 +29,13 @@ Resume (PDF)                    Career Page URLs
 
 ## Features
 
-- **Resume Parsing** -- Upload PDF, AI extracts skills, experience, education
-- **Smart Scraping** -- Firecrawl handles JavaScript-heavy career pages
-- **AI Matching** -- Claude evaluates fit across 4 weighted criteria
-- **Discord Alerts** -- Instant notifications for strong matches (80%+)
-- **Streamlit Dashboard** -- Manage sources, view matches, export to CSV
-- **Scheduled Runs** -- GitHub Actions triggers scraping every 6 hours
-- **Multi-user** -- Supabase Auth with per-user data isolation (RLS)
+- **Resume Parsing** — Upload PDF, AI extracts skills, experience, education
+- **Smart Scraping** — Firecrawl handles JavaScript-heavy career pages
+- **AI Matching** — Gemini evaluates fit across 4 weighted criteria
+- **Discord Alerts** — Instant notifications for strong matches (80%+)
+- **Streamlit Dashboard** — Manage sources, view matches, export to CSV
+- **Scheduled Runs** — GitHub Actions triggers scraping every 6 hours
+- **Multi-user** — Supabase Auth with per-user data isolation
 
 ## Match Scoring
 
@@ -52,7 +52,7 @@ Resume (PDF)                    Career Page URLs
 |-----------|-----------|
 | Backend API | FastAPI + Python 3.11 |
 | AI Scraping | Firecrawl API |
-| AI Matching | Claude 3.5 Sonnet (Anthropic) |
+| AI Matching | Gemini 1.5 Flash (Google) |
 | Database | Supabase (PostgreSQL) |
 | Dashboard | Streamlit |
 | Auth | Supabase Auth (JWT) |
@@ -60,32 +60,52 @@ Resume (PDF)                    Career Page URLs
 | Scheduling | GitHub Actions (cron) |
 | Deployment | Render (API + Dashboard) |
 
+## Live Demo
+
+- **Dashboard:** https://ai-resume-job-matcher-1-b78v.onrender.com
+- **API:** https://ai-resume-job-matcher-bazm.onrender.com
+- **API Docs:** https://ai-resume-job-matcher-bazm.onrender.com/docs
+
 ## Prerequisites
 
 - Python 3.10+
 - [Supabase account](https://supabase.com) (free tier)
-- [Anthropic API key](https://console.anthropic.com)
-- [Firecrawl API key](https://www.firecrawl.dev)
-- [Discord webhook URL](https://support.discord.com/hc/en-us/articles/228383668)
+- [Google Gemini API key](https://aistudio.google.com) (free tier)
+- [Firecrawl API key](https://www.firecrawl.dev) (optional)
+- [Discord webhook URL](https://support.discord.com/hc/en-us/articles/228383668) (optional)
 
 ## Quick Start (Local Development)
 
 ### 1. Clone and install
 
 ```bash
-git clone <your-repo-url>
-cd "AI Resume-Job Matching application"
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # macOS/Linux
+git clone https://github.com/aman00077777/AI_Resume-Job_Matcher.git
+cd AI_Resume-Job_Matcher
 pip install -r requirements.txt
 ```
 
 ### 2. Configure environment
 
-```bash
-cp .env.example .env
-# Edit .env with your API keys
+Create a `.env` file in the project root:
+
+```env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-public-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret
+
+GEMINI_API_KEY=your-gemini-api-key
+
+FIRECRAWL_API_KEY=your-firecrawl-key
+DISCORD_WEBHOOK_URL=
+
+MATCH_THRESHOLD=80
+SCRAPE_MAX_JOBS_PER_SOURCE=50
+LOG_LEVEL=INFO
+API_HOST=0.0.0.0
+API_PORT=8000
+API_BASE_URL=http://localhost:8000
+SERVICE_API_KEY=your-service-key
 ```
 
 ### 3. Set up Supabase database
@@ -93,28 +113,30 @@ cp .env.example .env
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** in your dashboard
 3. Copy and paste the contents of `sql/schema.sql`
-4. Click **Run** to create all tables and policies
+4. Click **Run** to create all tables
 5. Copy your project URL and keys from **Settings > API**
 
-### 4. Run the API
+### 4. Configure Streamlit secrets
+
+Create `.streamlit/secrets.toml`:
+
+```toml
+SUPABASE_URL = "https://your-project-id.supabase.co"
+SUPABASE_KEY = "your-anon-public-key"
+```
+
+### 5. Run the API
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 API docs available at: http://localhost:8000/docs
 
-### 5. Run the Dashboard
+### 6. Run the Dashboard
 
 ```bash
-# Create Streamlit secrets file
-mkdir .streamlit
-echo '[secrets]' > .streamlit/secrets.toml
-echo 'SUPABASE_URL = "your-url"' >> .streamlit/secrets.toml
-echo 'SUPABASE_KEY = "your-key"' >> .streamlit/secrets.toml
-
-# Launch
-streamlit run dashboard/app.py
+python -m streamlit run dashboard/app.py
 ```
 
 Dashboard available at: http://localhost:8501
@@ -129,38 +151,46 @@ This starts both the API (port 8000) and dashboard (port 8501).
 
 ## Deployment (Render)
 
-### Option A: Render Blueprint (Recommended)
-
-1. Push your code to GitHub
-2. Go to [Render Dashboard](https://dashboard.render.com)
-3. Click **New > Blueprint**
-4. Connect your GitHub repo
-5. Render will detect `render.yaml` and create both services
-6. Add environment variables in each service's settings
-
-### Option B: Manual Deployment
+### Manual Deployment
 
 **API Service:**
 1. New > Web Service > Connect repo
 2. Runtime: Docker
 3. Dockerfile Path: `./Dockerfile`
-4. Add all env vars from `.env.example`
+4. Add environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_KEY` | Your anon public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your service role key |
+| `SUPABASE_JWT_SECRET` | Your JWT secret |
+| `GEMINI_API_KEY` | Your Gemini API key |
+| `FIRECRAWL_API_KEY` | Your Firecrawl key |
+| `SERVICE_API_KEY` | Any random string |
+| `MATCH_THRESHOLD` | 80 |
+| `LOG_LEVEL` | INFO |
 
 **Dashboard Service:**
 1. New > Web Service > Connect repo
 2. Runtime: Docker
 3. Dockerfile Path: `./Dockerfile.dashboard`
-4. Add `SUPABASE_URL`, `SUPABASE_KEY`, and `API_BASE_URL` env vars
-5. Set `API_BASE_URL` to your API service's URL
+4. Add environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_KEY` | Your anon public key |
+| `API_BASE_URL` | Your deployed API URL |
 
 ## GitHub Actions Setup
 
 1. Go to your repo > Settings > Secrets and variables > Actions
 2. Add these secrets:
-   - `API_BASE_URL`: Your Render API URL (e.g., `https://ai-job-matcher-api.onrender.com`)
+   - `API_BASE_URL`: Your Render API URL
    - `SERVICE_API_KEY`: The same key from your `.env`
 3. The workflow runs automatically every 6 hours
-4. You can also trigger it manually from the Actions tab
+4. Trigger manually from the Actions tab
 
 ## Project Structure
 
@@ -179,13 +209,11 @@ app/
     jobs.py            # Job match endpoints
     scraping.py        # Scrape trigger endpoint
   services/
-    resume_parser.py   # PDF parsing + Claude structuring
+    resume_parser.py   # PDF parsing + Gemini structuring
     scraper.py         # Firecrawl career page scraping
-    matcher.py         # Claude match scoring
+    matcher.py         # Gemini match scoring
     discord_alerts.py  # Discord webhook alerts
     scheduler.py       # Pipeline orchestrator
-  utils/
-    helpers.py         # CSV export, utilities
 
 dashboard/
   app.py               # Streamlit entry point
@@ -199,8 +227,8 @@ dashboard/
     charts.py          # Plotly chart components
 
 tests/                 # Pytest test suite
-sql/schema.sql         # Database migration
-render.yaml            # Render deployment blueprint
+sql/schema.sql         # Database schema
+render.yaml            # Render deployment config
 docker-compose.yml     # Local dev setup
 .github/workflows/     # GitHub Actions cron
 ```
@@ -226,6 +254,21 @@ docker-compose.yml     # Local dev setup
 
 All endpoints except `/health` and `/` require `Authorization: Bearer <token>`.
 
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_KEY` | Yes | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key |
+| `SUPABASE_JWT_SECRET` | Yes | JWT verification secret |
+| `GEMINI_API_KEY` | Yes | Google Gemini API key (free at aistudio.google.com) |
+| `FIRECRAWL_API_KEY` | No | Firecrawl API key for scraping |
+| `DISCORD_WEBHOOK_URL` | No | Default Discord webhook for alerts |
+| `SERVICE_API_KEY` | No | Key for GitHub Actions triggers |
+| `MATCH_THRESHOLD` | No | Alert threshold (default: 80) |
+| `SCRAPE_MAX_JOBS_PER_SOURCE` | No | Max jobs per scrape (default: 50) |
+
 ## Running Tests
 
 ```bash
@@ -239,23 +282,12 @@ pytest tests/ --cov=app --cov-report=term-missing
 pytest tests/test_matcher.py -v
 ```
 
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project URL |
-| `SUPABASE_KEY` | Yes | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key (for background jobs) |
-| `SUPABASE_JWT_SECRET` | Yes | JWT verification secret |
-| `ANTHROPIC_API_KEY` | Yes | Claude API key |
-| `FIRECRAWL_API_KEY` | Yes | Firecrawl API key |
-| `DISCORD_WEBHOOK_URL` | No | Default Discord webhook |
-| `SERVICE_API_KEY` | No | Key for GitHub Actions triggers |
-| `MATCH_THRESHOLD` | No | Alert threshold (default: 80) |
-| `SCRAPE_MAX_JOBS_PER_SOURCE` | No | Max jobs per scrape (default: 50) |
-
 ## License
 
 MIT
-#   A I _ R e s u m e - J o b _ M a t c h e r  
- 
+
+## Author
+
+**Aman Sharma**
+- GitHub: [aman00077777](https://github.com/aman00077777)
+- Project: [AI Resume-Job Matcher](https://github.com/aman00077777/AI_Resume-Job_Matcher)
