@@ -1,17 +1,38 @@
 -- =============================================================================
--- AI Resume-Job Matching Application — Database Schema
--- =============================================================================
--- Run this in your Supabase SQL Editor (Dashboard → SQL Editor → New query).
--- This creates all tables, indexes, and Row-Level Security policies.
+-- CLEAN RESET + RECREATE — Run this in Supabase SQL Editor
 -- =============================================================================
 
--- Enable UUID generation
+-- ─── Drop triggers ───────────────────────────────────────────────────────────
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS set_updated_at_users ON public.users;
+DROP TRIGGER IF EXISTS set_updated_at_sources ON public.company_sources;
+DROP TRIGGER IF EXISTS set_updated_at_matches ON public.job_matches;
+
+-- ─── Drop functions ───────────────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP FUNCTION IF EXISTS public.update_updated_at() CASCADE;
+
+-- ─── Drop tables (order matters due to foreign keys) ─────────────────────────
+DROP TABLE IF EXISTS public.scrape_runs CASCADE;
+DROP TABLE IF EXISTS public.job_matches CASCADE;
+DROP TABLE IF EXISTS public.job_listings CASCADE;
+DROP TABLE IF EXISTS public.company_sources CASCADE;
+DROP TABLE IF EXISTS public.resumes CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+
+-- ─── Drop custom types ────────────────────────────────────────────────────────
+DROP TYPE IF EXISTS match_status CASCADE;
+
+-- =============================================================================
+-- RECREATE EVERYTHING
+-- =============================================================================
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 1. User Profiles (extends Supabase auth.users)
+-- 1. Users
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE public.users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL DEFAULT '',
     location_preference TEXT NOT NULL DEFAULT '',
@@ -35,7 +56,6 @@ CREATE POLICY "Users can insert own profile"
     ON public.users FOR INSERT
     WITH CHECK (auth.uid() = id);
 
--- Auto-create a user profile when a new auth user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -45,7 +65,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE TRIGGER on_auth_user_created
+CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
@@ -53,7 +73,7 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. Resumes
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.resumes (
+CREATE TABLE public.resumes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     filename TEXT NOT NULL,
@@ -80,7 +100,7 @@ CREATE POLICY "Users can manage own resumes"
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 3. Company Sources
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.company_sources (
+CREATE TABLE public.company_sources (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     company_name TEXT NOT NULL,
@@ -104,7 +124,7 @@ CREATE POLICY "Users can manage own sources"
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Job Listings
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.job_listings (
+CREATE TABLE public.job_listings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     source_id UUID NOT NULL REFERENCES public.company_sources(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
@@ -121,7 +141,6 @@ CREATE INDEX idx_listings_content_hash ON public.job_listings(content_hash);
 
 ALTER TABLE public.job_listings ENABLE ROW LEVEL SECURITY;
 
--- Users can see job listings linked to their own sources
 CREATE POLICY "Users can view own job listings"
     ON public.job_listings FOR SELECT
     USING (
@@ -141,7 +160,7 @@ CREATE POLICY "Service can insert job listings"
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TYPE match_status AS ENUM ('new', 'applied', 'not_interested', 'saved');
 
-CREATE TABLE IF NOT EXISTS public.job_matches (
+CREATE TABLE public.job_matches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     job_id UUID NOT NULL REFERENCES public.job_listings(id) ON DELETE CASCADE,
     resume_id UUID NOT NULL REFERENCES public.resumes(id) ON DELETE CASCADE,
@@ -189,9 +208,9 @@ CREATE POLICY "Service can insert matches"
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 6. Scrape Runs (audit log)
+-- 6. Scrape Runs
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.scrape_runs (
+CREATE TABLE public.scrape_runs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -215,7 +234,7 @@ CREATE POLICY "Users can view own scrape runs"
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Updated-at trigger function
+-- Updated-at trigger
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER AS $$
